@@ -1,0 +1,59 @@
+<!doctype html>
+<html lang="fa" dir="rtl">
+<head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>مدیریت VIN Gallery</title>
+<style>
+body{font-family:Tahoma,Arial;background:#f5f7fb;margin:0;color:#172033}.wrap{max-width:900px;margin:30px auto;padding:0 15px}
+.card{background:white;padding:22px;border-radius:16px;margin-bottom:18px;box-shadow:0 5px 25px #0001}
+input,textarea{width:100%;padding:12px;margin:7px 0 14px;border:1px solid #d5d9e2;border-radius:9px;font-size:15px}
+button{background:#2563eb;color:#fff;border:0;border-radius:9px;padding:12px 18px;cursor:pointer}.ltr{direction:ltr}
+#status{margin-top:12px}
+</style></head>
+<body><div class="wrap">
+<h1>مدیریت VIN Gallery</h1>
+<div class="card">
+<h2>افزودن / ویرایش موتر</h2>
+<label>VIN (۱۷ رقم)</label><input id="vin" class="ltr" maxlength="17">
+<label>سال</label><input id="year" type="number">
+<label>برند</label><input id="make" value="Toyota">
+<label>مدل</label><input id="model" value="4Runner">
+<label>توضیحات</label><textarea id="desc"></textarea>
+<button onclick="saveVehicle()">ذخیره موتر</button>
+<div id="status"></div>
+</div>
+<div class="card">
+<h2>آپلود عکس</h2>
+<label>VIN</label><input id="pvin" class="ltr" maxlength="17">
+<input id="photos" type="file" accept="image/*" multiple>
+<button onclick="uploadPhotos()">آپلود عکس‌ها</button>
+<div id="pstatus"></div>
+</div>
+</div>
+<script>
+const SUPABASE_URL="YOUR_SUPABASE_URL", SUPABASE_ANON_KEY="YOUR_SUPABASE_ANON_KEY";
+const H={apikey:SUPABASE_ANON_KEY,Authorization:`Bearer ${SUPABASE_ANON_KEY}`,"Content-Type":"application/json","Prefer":"return=representation"};
+function ready(){return !SUPABASE_URL.startsWith("YOUR_")}
+async function saveVehicle(){
+ if(!ready()) return status("ابتدا Supabase را طبق README وصل کنید.");
+ let vin=document.getElementById("vin").value.trim().toUpperCase();
+ if(vin.length!==17)return status("VIN باید ۱۷ رقمی باشد.");
+ let body={vin,year:Number(document.getElementById("year").value)||null,make:document.getElementById("make").value,model:document.getElementById("model").value,description:document.getElementById("desc").value};
+ let r=await fetch(`${SUPABASE_URL}/rest/v1/vehicles?on_conflict=vin`,{method:"POST",headers:{...H,"Prefer":"resolution=merge-duplicates,return=representation"},body:JSON.stringify(body)});
+ status(r.ok?"موتر ذخیره شد.":"خطا در ذخیره موتر.");
+}
+async function uploadPhotos(){
+ if(!ready()) return pstatus("ابتدا Supabase را طبق README وصل کنید.");
+ let vin=document.getElementById("pvin").value.trim().toUpperCase(), files=[...document.getElementById("photos").files];
+ if(vin.length!==17||!files.length)return pstatus("VIN و حداقل یک عکس لازم است.");
+ for(const f of files){
+   const path=`${vin}/${Date.now()}-${Math.random().toString(36).slice(2)}-${f.name.replace(/[^a-zA-Z0-9._-]/g,"_")}`;
+   let up=await fetch(`${SUPABASE_URL}/storage/v1/object/vehicle-photos/${path}`,{method:"POST",headers:{apikey:SUPABASE_ANON_KEY,Authorization:`Bearer ${SUPABASE_ANON_KEY}`,"Content-Type":f.type||"image/jpeg","x-upsert":"false"},body:f});
+   if(!up.ok){pstatus("آپلود یکی از عکس‌ها ناموفق بود.");continue;}
+   let publicUrl=`${SUPABASE_URL}/storage/v1/object/public/vehicle-photos/${path}`;
+   await fetch(`${SUPABASE_URL}/rest/v1/vehicle_photos`,{method:"POST",headers:H,body:JSON.stringify({vin,public_url:publicUrl,storage_path:path})});
+ }
+ pstatus("آپلود تمام شد.");
+}
+function status(t){document.getElementById("status").textContent=t}
+function pstatus(t){document.getElementById("pstatus").textContent=t}
+</script></body></html>

@@ -1,0 +1,69 @@
+<!doctype html>
+<html lang="fa" dir="rtl">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1">
+  <title>VIN Gallery — گالری موتر بر اساس VIN</title>
+  <meta name="description" content="جستجوی موتر بر اساس VIN و مشاهده عکس‌های ثبت‌شده">
+  <style>
+    *{box-sizing:border-box}body{margin:0;font-family:Tahoma,Arial,sans-serif;background:#f5f7fb;color:#172033}
+    header{background:#111827;color:white;padding:26px 18px} .wrap{max-width:1050px;margin:auto}
+    h1{margin:0 0 8px;font-size:30px}.sub{opacity:.8}
+    .search{background:white;margin:25px auto;padding:22px;border-radius:18px;box-shadow:0 8px 30px #0001}
+    .row{display:flex;gap:10px}.row input{flex:1;padding:14px;border:1px solid #d6dbe5;border-radius:10px;font-size:16px;direction:ltr}
+    button{border:0;border-radius:10px;padding:14px 20px;background:#2563eb;color:white;font-size:16px;cursor:pointer}
+    button:hover{opacity:.92}.secondary{background:#374151}
+    .card{background:white;border-radius:18px;padding:22px;margin:18px 0;box-shadow:0 4px 20px #0000000b}
+    .hidden{display:none}.vin{font-family:monospace;direction:ltr;font-size:18px}
+    .gallery{display:grid;grid-template-columns:repeat(auto-fit,minmax(220px,1fr));gap:14px}
+    .gallery img{width:100%;height:220px;object-fit:cover;border-radius:12px;background:#eee}
+    .msg{padding:14px;border-radius:10px;background:#eef2ff}.error{background:#fee2e2;color:#991b1b}
+    footer{padding:30px 18px;text-align:center;color:#6b7280}
+    @media(max-width:650px){.row{flex-direction:column}.row button{width:100%}}
+  </style>
+</head>
+<body>
+<header><div class="wrap"><h1>VIN Gallery</h1><div class="sub">گالری عکس موتر بر اساس شماره VIN</div></div></header>
+<main class="wrap">
+  <section class="search">
+    <h2>جستجوی VIN</h2>
+    <div class="row">
+      <input id="vin" maxlength="17" placeholder="مثلاً JTEBU14R350060840" autocomplete="off">
+      <button onclick="searchVIN()">جستجو</button>
+    </div>
+    <p id="msg"></p>
+  </section>
+  <section id="result" class="card hidden"></section>
+</main>
+<footer>VIN Gallery — اطلاعات و عکس‌ها توسط کاربران ثبت می‌شوند.</footer>
+
+<script>
+const SUPABASE_URL = "YOUR_SUPABASE_URL";
+const SUPABASE_ANON_KEY = "YOUR_SUPABASE_ANON_KEY";
+
+function esc(s){return String(s??"").replace(/[&<>"']/g,m=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#039;"}[m]));}
+function showMsg(t,error=false){const e=document.getElementById("msg");e.textContent=t;e.className=error?"error":"";}
+async function searchVIN(){
+  const vin=document.getElementById("vin").value.trim().toUpperCase();
+  if(vin.length!==17){showMsg("لطفاً VIN کامل ۱۷ رقمی را وارد کنید.",true);return;}
+  if(SUPABASE_URL.startsWith("YOUR_")){showMsg("سایت هنوز به دیتابیس آنلاین وصل نشده است. فایل README را دنبال کنید.",true);return;}
+  showMsg("در حال جستجو...");
+  const url=`${SUPABASE_URL}/rest/v1/vehicles?vin=eq.${encodeURIComponent(vin)}&select=*,vehicle_photos(*)`;
+  const r=await fetch(url,{headers:{apikey:SUPABASE_ANON_KEY,Authorization:`Bearer ${SUPABASE_ANON_KEY}`}});
+  const data=await r.json();
+  if(!r.ok){showMsg("خطا در اتصال به دیتابیس.",true);return;}
+  render(data[0]);
+}
+function render(v){
+  const box=document.getElementById("result");box.classList.remove("hidden");
+  if(!v){box.innerHTML="<h2>موتر پیدا نشد</h2><p>برای این VIN هنوز رکورد عمومی ثبت نشده است.</p>";return;}
+  const photos=(v.vehicle_photos||[]).map(p=>`<img src="${esc(p.public_url)}" alt="عکس موتر ${esc(v.vin)}">`).join("");
+  box.innerHTML=`<h2>${esc(v.year||"")} ${esc(v.make||"")} ${esc(v.model||"")}</h2>
+  <p><b>VIN:</b> <span class="vin">${esc(v.vin)}</span></p>
+  ${v.description?`<p>${esc(v.description)}</p>`:""}
+  <h3>عکس‌ها</h3><div class="gallery">${photos||"<p>هنوز عکسی ثبت نشده است.</p>"}</div>`;
+}
+document.getElementById("vin").addEventListener("keydown",e=>{if(e.key==="Enter")searchVIN();});
+</script>
+</body>
+</html>
